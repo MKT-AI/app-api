@@ -1,0 +1,97 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: allancho
+# "app" enables Serverless Framework Dashboard features and sharing them with other Services.
+app: mkt-ai
+# "service" is the name of this project. This will also be added to your AWS resource names.
+service: app-api
+
+package:
+  exclude:
+    - layers/**
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: dev
+  profile: nit
+  region: ap-northeast-2
+  memorySize: 128
+  timeout: 15
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "s3:GetObject"
+        - "s3:GetObjectVersion"
+        - "s3:PutObject"
+      Resource:
+        - "arn:aws:s3:::mktcontentsbucket/*"
+  httpApi:
+    cors: true
+  environment:
+  layers:
+    - { Ref: NpmLambdaLayer }
+
+custom:
+  functionsBasePath: functions
+
+layers:
+  npm:
+    path: layers/npm
+    name: ${sls:stage}-npm
+
+functions:
+  test:
+    handler: test.handler
+    layers:
+      - { Ref: NpmLambdaLayer }
+    events:
+      - httpApi:
+          path: /test
+          method: get
+
+  login:
+    handler: login.handler
+    events:
+      - httpApi:
+          path: /login
+          method: get
+
+  login_validation:
+    handler: login.validation
+    events:
+      - httpApi:
+          path: /login/validation
+          method: get
+
+  user:
+    handler: user.handler
+    events:
+      - httpApi:
+          path: /user
+          method: get
+
+  bucket_get:
+    handler: bucket.createGetUrl
+    events:
+      - httpApi:
+          path: /bucket/download/{file_key}
+          method: get
+
+  bucket_post:
+    handler: bucket.createPostUrl
+    events:
+      - httpApi:
+          path: /bucket/upload/{file_extension}
+          method: get
+
+  bucket_presigned:
+    handler: bucket.getPresignedUrl
+    events:
+      - httpApi:
+          path: /bucket/presigned/{file_extension}
+          method: get
+
+plugins:
+  - serverless-dotenv-plugin
+  - serverless-functions-base-path
+  - serverless-ignore
