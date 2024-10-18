@@ -37,7 +37,7 @@ custom:
 layers:
   npm:
     path: layers/npm
-    name: ${sls:stage}-npm
+    name: ${self:service}-${sls:stage}-npm
 
 functions:
   test:
