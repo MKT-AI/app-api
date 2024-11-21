@@ -23,10 +23,22 @@ provider:
         - "s3:GetObject"
         - "s3:GetObjectVersion"
         - "s3:PutObject"
+        - "s3:CreateBucket"
       Resource:
         - "arn:aws:s3:::mktcontentsbucket/*"
   httpApi:
-    cors: true
+    cors:
+      allowedOrigins:
+        - "*"
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+        - x-mktai-session-token
+      allowedMethods:
+        - GET
+        - POST
+        - PATCH
+        - OPTIONS
   environment:
   layers:
     - { Ref: NpmLambdaLayer }
@@ -40,34 +52,123 @@ layers:
     name: ${self:service}-${sls:stage}-npm
 
 functions:
-  test:
-    handler: test.handler
-    layers:
-      - { Ref: NpmLambdaLayer }
-    events:
-      - httpApi:
-          path: /test
-          method: get
-
-  login:
-    handler: login.handler
+  user_login:
+    handler: user.login
     events:
       - httpApi:
           path: /login
-          method: get
+          method: post
 
-  login_validation:
-    handler: login.validation
+  session_validate:
+    handler: user.validate
     events:
       - httpApi:
-          path: /login/validation
+          path: /session/validate
           method: get
 
-  user:
-    handler: user.handler
+  user_new:
+    handler: user.new
     events:
       - httpApi:
           path: /user
+          method: post
+
+  user_list:
+    handler: user.list
+    events:
+      - httpApi:
+          path: /user
+          method: get
+
+  user_search:
+    handler: user.search
+    events:
+      - httpApi:
+          path: /user/search
+          method: get
+
+  user_detail:
+    handler: user.detail
+    events:
+      - httpApi:
+          path: /user/{userId}
+          method: get
+
+  user_update:
+    handler: user.update
+    events:
+      - httpApi:
+          path: /user/{userId}
+          method: patch
+
+  project_new:
+    handler: project.new
+    events:
+      - httpApi:
+          path: /project
+          method: post
+
+  project_list:
+    handler: project.list
+    events:
+      - httpApi:
+          path: /project
+          method: get
+
+  project_detail:
+    handler: project.detail
+    events:
+      - httpApi:
+          path: /project/{projectId}
+          method: get
+
+  project_update:
+    handler: project.update
+    events:
+      - httpApi:
+          path: /project/{projectId}
+          method: patch
+
+  item_new:
+    handler: item.new
+    events:
+      - httpApi:
+          path: /item
+          method: post
+
+  item_list:
+    handler: item.list
+    events:
+      - httpApi:
+          path: /item
+          method: get
+
+  item_detail:
+    handler: item.detail
+    events:
+      - httpApi:
+          path: /item/{itemId}
+          method: get
+
+  item_update:
+    handler: item.update
+    events:
+      - httpApi:
+          path: /item/{itemId}
+          method: patch
+
+  usage_new:
+    handler: usage.new
+    events:
+      - httpApi:
+          path: /usage
+          method: post
+
+  usage_list:
+    handler: usage.list
+    events:
+      - httpApi:
+          path: /usage
           method: get
 
   bucket_get:

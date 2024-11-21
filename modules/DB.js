@@ -1,3 +1,6 @@
+const TAG = "DB";
+const LTAG = (...args) => console.log(`[${TAG}]`, ...args);
+
 const MongoClient = require("mongodb").MongoClient;
 const COMMON = require("modules/common");
 

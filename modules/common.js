@@ -1,23 +1,28 @@
-module.exports.randomString = (l) => {
-  let text = "",
-    possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  for (let i = 0; i < l; i++)
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  return text;
+const TAG = "CMM";
+const LTAG = (...args) => console.log(`[${TAG}]`, ...args);
+
+module.exports.randomString = (length = 10) => {
+  const possible =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  return Array.from(
+    { length },
+    (_) => possible[Math.floor(Math.random() * possible.length)]
+  ).join("");
 };
 
 module.exports.generateSessionToken = () => {
-  let text = "sstk:",
-    possible = "abcdefghijklmnopqrstuvwxyz0123456789";
-  for (let i = 0; i < 32; i++)
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  return text;
+  const possible = "abcdefghijklmnopqrstuvwxyz0123456789",
+    tokenString = Array.from(
+      { length: 32 },
+      (_) => possible[Math.floor(Math.random() * possible.length)]
+    ).join("");
+  return `sst:${tokenString}`;
 };
 
 module.exports.response = (
   statusCode,
   result,
-  headers = { "Access-Control-Allow-Origin": "*" }
+  headers
 ) => ({
   isBase64Encoded: false,
   statusCode: statusCode,
@@ -32,6 +37,7 @@ const ERROR_MESSAGE_MAP = {
   510: "INVALID_PARAMS",
   511: "USER_NOT_FOUND",
   512: "SESSION_NOT_FOUND",
+  521: "TARGET_NOT_FOUND",
 };
 module.exports.ERROR = (error) => ({
   isBase64Encoded: false,
@@ -45,3 +51,7 @@ module.exports.ERROR = (error) => ({
     },
   }),
 });
+
+Object.entries(ERROR_MESSAGE_MAP).map(
+  ([code, msg]) => (module.exports.ERROR[msg] = module.exports.ERROR(code))
+);
