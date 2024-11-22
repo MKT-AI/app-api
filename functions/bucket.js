@@ -34,7 +34,9 @@ module.exports.createGetUrl = async (event, context, callback) => {
 module.exports.createPostUrl = async (event, context, callback) => {
   context.callbackWaitsForEmptyEventLoop = false;
   const pathParams = event.pathParameters;
-  const client = new S3Client(clientParams);
+  const client = new S3Client({
+    region: process.env.AWS_REGION,
+  });
   const { file_extension: fileExtension } = pathParams;
   if (!fileExtension) return callback(null, COMMON.ERROR(510));
   const fileKey = `${(Math.random() + 1)
@@ -54,7 +56,9 @@ module.exports.createPostUrl = async (event, context, callback) => {
 
 module.exports.getPresignedUrl = async (event) => {
   const pathParams = event.pathParameters;
-  const client = new S3Client(clientParams);
+  const client = new S3Client({
+    region: process.env.AWS_REGION,
+  });
   const { file_extension: fileExtension } = pathParams;
   if (!fileExtension) return COMMON.ERROR(510);
   const fileKey = `${(Math.random() + 1)
