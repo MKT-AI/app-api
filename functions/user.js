@@ -42,6 +42,8 @@ module.exports.login = async (event, context, callback) => {
 
     if (!user) throw Error(ERROR.USER_NOT_FOUND);
 
+    const { _id: userId, password: hashed } = user;
+
     const verified = await HASH.verify(password, hashed);
     if (!verified) throw Error(ERROR.PASSWORD_FAILED);
 
