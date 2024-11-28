@@ -77,7 +77,15 @@ module.exports.list = async (event, context, callback) => {
   console.log("processing event: %j", event);
   console.log("processing context: %j", context);
 
-  const { projectId } = event.queryStringParameters || {};
+  const {
+    project_id: projectId,
+    search_text: searchText,
+    search_type: searchType,
+    task_type: taskType,
+    show_public,
+  } = event.queryStringParameters || {};
+
+  const showPublic = show_public == "true" || show_public == 1;
 
   try {
     if (!projectId) throw Error(ERROR.INVALID_PARAMS);
@@ -87,22 +95,53 @@ module.exports.list = async (event, context, callback) => {
 
     if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
 
-    return DB.first("Project", {
-      _id: projectId,
+    return DB.findAll("Project", {
       $or: [
         {
+          _id: projectId,
           _r_members: _p_user,
         },
         {
+          _id: projectId,
           isPublic: true,
         },
-      ],
+        showPublic
+          ? {
+              isPublic: true,
+              ...(!!searchText && {
+                $or: [
+                  {
+                    name: { $regex: searchText, $options: "i" },
+                  },
+                  {
+                    description: { $regex: searchText, $options: "i" },
+                  },
+                ],
+              }),
+            }
+          : undefined,
+      ].filter(Boolean),
       isDeleted: { $ne: true },
     })
-      .then((project) => {
-        if (!project) throw Error(ERROR.TARGET_NOT_FOUND);
+      .then((projects) => {
+        if (projects.length == 0) throw Error(ERROR.TARGET_NOT_FOUND);
         return DB.findAll("Item", {
-          _p_project: `Project$${projectId}`,
+          _p_project: {
+            $in: projects.map((project) => `Project$${project._id}`),
+          },
+          ...(!!searchType && { type: searchType }),
+          ...(!!taskType && { "metadata.task.type": taskType }),
+          ...(!!searchText && {
+            $or: [
+              {
+                name: { $regex: searchText, $options: "i" },
+              },
+              {
+                description: { $regex: searchText, $options: "i" },
+              },
+              // showPublic ? { } : undefined
+            ].filter(Boolean),
+          }),
           isDeleted: { $ne: true },
         });
       })
