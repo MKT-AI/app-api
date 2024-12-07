@@ -101,6 +101,13 @@ functions:
           path: /user/{userId}
           method: patch
 
+  user_delete:
+    handler: user.delete
+    events:
+      - httpApi:
+          path: /user/{userId}
+          method: delete
+
   project_new:
     handler: project.new
     events:
@@ -128,6 +135,13 @@ functions:
       - httpApi:
           path: /project/{projectId}
           method: patch
+
+  project_delete:
+    handler: project.delete
+    events:
+      - httpApi:
+          path: /project/{projectId}
+          method: delete
 
   item_new:
     handler: item.new
@@ -157,11 +171,25 @@ functions:
           path: /item/{itemId}
           method: patch
 
+  item_delete:
+    handler: item.delete
+    events:
+      - httpApi:
+          path: /item/{itemId}
+          method: delete
+
   usage_new:
     handler: usage.new
     events:
       - httpApi:
           path: /usage
+          method: post
+
+  usage_track:
+    handler: usage.track
+    events:
+      - httpApi:
+          path: /usage/track
           method: post
 
   usage_list:

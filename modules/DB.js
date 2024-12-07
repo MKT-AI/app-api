@@ -189,11 +189,12 @@ module.exports.findAll = (collectionName, params, options = {}) => {
     let {
         projection,
         limit,
+        skip,
         sort,
         maxTime,
         remainingTimeInMillis,
         offset,
-        defaultValue
+        defaultValue 
     } = options;
 
     return getDBConnection()
@@ -202,7 +203,8 @@ module.exports.findAll = (collectionName, params, options = {}) => {
                 .find(params)
                 .project(projection || {})
                 .sort(sort || { _updated_at: -1 })
-                .limit(limit || 0);
+                .limit(limit || 0)
+                .skip(skip || 0);
 
             return timedOut(promise, { maxTime, remainingTimeInMillis, offset, defaultValue });
         })

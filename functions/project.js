@@ -57,7 +57,7 @@ module.exports.list = async (event, context, callback) => {
 
     if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
 
-    return DB.findAll(
+    const projects = await DB.findAll(
       "Project",
       {
         $or: [
@@ -72,9 +72,52 @@ module.exports.list = async (event, context, callback) => {
         status: { $ne: FZ.PROJECT_STATUS.BLIND },
       },
       { ...(!!brief && { projection: { name: 1 } }) }
-    ).then((projects) => {
-      return COMMON.response(200, { projects });
+    );
+    const users = await DB.findAll(
+      "User",
+      {
+        _id: {
+          $in: projects
+            .map(({ _r_members }) =>
+              _r_members.map((_p_user) => _p_user.split("$")[1])
+            )
+            .flat(),
+        },
+        isDeleted: { $ne: true },
+      },
+      {
+        projection: { username: 1 },
+      }
+    );
+    const usernameMap = users.reduce((map, { _id, username }) => {
+      map[_id] = username;
+      return map;
+    }, {});
+
+    const items = await DB.findAll(
+      "Item",
+      {
+        _p_project: { $in: projects.map(({ _id }) => `Project$${_id}`) },
+        isDeleted: { $ne: true },
+      },
+      { projection: { _p_project: 1 } }
+    );
+    const itemCountMap = items.reduce((map, { _p_project }) => {
+      const [, projectId] = _p_project.split("$");
+      map[projectId] = (map[projectId] || 0) + 1;
+      return map;
+    }, {});
+    const data = projects.map((project) => {
+      const { _r_members, ...args } = project;
+      const members = _r_members.map((_p_user) => {
+        const [, userId] = _p_user.split("$");
+        const username = usernameMap[userId] || "no name";
+        return { _id: userId, username, _p_user: `User$${userId}` };
+      });
+      const itemCount = itemCountMap[project._id] || 0;
+      return { ...args, members, count: { item: itemCount } };
     });
+    return COMMON.response(200, { projects: data });
   } catch (e) {
     console.error("Error: ", e.message);
     return ERROR(e);
@@ -94,20 +137,26 @@ module.exports.detail = async (event, context, callback) => {
 
     if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
 
-    return DB.first("Project", {
-      _id: projectId,
-      $or: [
-        {
-          _r_members: _p_user,
-        },
-        {
-          isPublic: true,
-        },
-      ],
-      isDeleted: { $ne: true },
-      status: { $ne: FZ.PROJECT_STATUS.BLIND },
-    }).then((project) => {
-      return COMMON.response(200, project);
+    return Promise.all([
+      DB.first("Project", {
+        _id: projectId,
+        $or: [
+          {
+            _r_members: _p_user,
+          },
+          {
+            isPublic: true,
+          },
+        ],
+        isDeleted: { $ne: true },
+        status: { $ne: FZ.PROJECT_STATUS.BLIND },
+      }),
+      DB.count("Item", {
+        _p_project: `Project$${projectId}`,
+        isDeleted: { $ne: true },
+      }),
+    ]).then(([project, itemCount]) => {
+      return COMMON.response(200, { ...project, count: { item: itemCount } });
     });
   } catch (e) {
     console.error("Error: ", e.message);
@@ -125,9 +174,17 @@ module.exports.update = async (event, context, callback) => {
   const body = UTIL.jsonParser(event.body);
   console.log("processing body: %j", body);
 
-  const { name, description = "", members = [], isPublic, apiKey } = body;
+  const {
+    name,
+    description = "",
+    _r_members = [],
+    isPublic,
+    apiKey,
+    status,
+  } = body;
 
   try {
+    if (!FZ.PROJECT_STATUS.isValid(status)) throw Error(ERROR.INVALID_PARAMS);
     const session = await PRE.sync(event, context, callback);
     const { _p_user } = session;
 
@@ -139,15 +196,55 @@ module.exports.update = async (event, context, callback) => {
         $set: {
           name,
           description,
-          _r_members: [_p_user, ...members],
+          _r_members: [...new Set([_p_user, ..._r_members])],
           isPublic,
           ...(!!apiKey && { apiKey }),
+          status,
         },
       },
       { _id: projectId }
     ).then((result) => {
       return COMMON.response(200, { result });
     });
+  } catch (e) {
+    console.error("Error: ", e.message);
+    return ERROR(e);
+  }
+};
+
+module.exports.delete = async (event, context, callback) => {
+  console.log("processing event: %j", event);
+  console.log("processing context: %j", context);
+
+  const { method: REST_METHOD } = event.requestContext.http;
+
+  const { projectId } = event.pathParameters;
+
+  try {
+    const session = await PRE.sync(event, context, callback);
+    const { _p_user } = session;
+
+    if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
+
+    return DB.first("Project", {
+      _id: projectId,
+      _p_owner: _p_user,
+      isDeleted: { $ne: true },
+    })
+      .then((project) => {
+        if (!project) throw Error(ERROR.TARGET_NOT_FOUND);
+
+        return DB.update(
+          "Project",
+          {
+            $set: { status: FZ.PROJECT_STATUS.BLIND, isDeleted: true },
+          },
+          { _id: projectId }
+        );
+      })
+      .then((result) => {
+        return COMMON.response(200, { result });
+      });
   } catch (e) {
     console.error("Error: ", e.message);
     return ERROR(e);

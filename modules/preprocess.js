@@ -29,7 +29,11 @@ module.exports.sync = (event, context, callback) => {
       const [, userId] = _p_user.split("$");
       return Promise.all([
         session,
-        DB.first("User", { _id: userId, status: FZ.USER_STATUS.ACTIVE }),
+        DB.first("User", {
+          _id: userId,
+          status: FZ.USER_STATUS.ACTIVE,
+          isDeleted: { $ne: true },
+        }),
       ]);
     })
     .then(([session, user]) => {

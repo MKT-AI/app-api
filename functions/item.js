@@ -39,6 +39,7 @@ module.exports.new = async (event, context, callback) => {
         },
       ],
       isDeleted: { $ne: true },
+      status: { $ne: FZ.PROJECT_STATUS.BLIND },
     })
       .then((project) => {
         if (!project) throw Error(ERROR.TARGET_NOT_FOUND);
@@ -83,7 +84,13 @@ module.exports.list = async (event, context, callback) => {
     search_type: searchType,
     task_type: taskType,
     show_public,
+    limit,
+    page,
   } = event.queryStringParameters || {};
+
+  const SHOULD_PAGENATION = !!limit && !!page;
+  const PAGE_LENGTH = SHOULD_PAGENATION ? Number(limit) : undefined;
+  const PAGE = SHOULD_PAGENATION ? Number(page) : undefined;
 
   const showPublic = show_public == "true" || show_public == 1;
 
@@ -122,15 +129,16 @@ module.exports.list = async (event, context, callback) => {
           : undefined,
       ].filter(Boolean),
       isDeleted: { $ne: true },
+      status: { $ne: FZ.PROJECT_STATUS.BLIND },
     })
       .then((projects) => {
         if (projects.length == 0) throw Error(ERROR.TARGET_NOT_FOUND);
-        return DB.findAll("Item", {
+        const itemQuery = {
           _p_project: {
             $in: projects.map((project) => `Project$${project._id}`),
           },
           ...(!!searchType && { type: searchType }),
-          ...(!!taskType && { "metadata.task.type": taskType }),
+          ...(!!taskType && { "metadata.task_type": taskType }),
           ...(!!searchText && {
             $or: [
               {
@@ -143,10 +151,26 @@ module.exports.list = async (event, context, callback) => {
             ].filter(Boolean),
           }),
           isDeleted: { $ne: true },
-        });
+        };
+        return Promise.all([
+          DB.findAll("Item", itemQuery, {
+            sort: { _updated_at: -1 },
+            ...(SHOULD_PAGENATION && {
+              limit: PAGE_LENGTH,
+              skip: PAGE_LENGTH * (PAGE - 1),
+            }),
+          }),
+          DB.count("Item", itemQuery),
+        ]);
       })
-      .then((items) => {
-        return COMMON.response(200, { items });
+      .then(([items, itemCount]) => {
+        const pageCount = SHOULD_PAGENATION
+          ? Math.ceil(itemCount / PAGE_LENGTH)
+          : 0;
+        return COMMON.response(200, {
+          items,
+          count: { page: pageCount, item: itemCount },
+        });
       });
   } catch (e) {
     console.error("Error: ", e.message);
@@ -260,6 +284,45 @@ module.exports.update = async (event, context, callback) => {
       })
       .then((uploadUrl) => {
         return COMMON.response(200, { uploadUrl });
+      });
+  } catch (e) {
+    console.error("Error: ", e.message);
+    return ERROR(e);
+  }
+};
+
+module.exports.delete = async (event, context, callback) => {
+  console.log("processing event: %j", event);
+  console.log("processing context: %j", context);
+
+  const { method: REST_METHOD } = event.requestContext.http;
+
+  const { itemId } = event.pathParameters;
+
+  try {
+    const session = await PRE.sync(event, context, callback);
+    const { _p_user } = session;
+
+    if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
+
+    return DB.first("Item", {
+      _id: itemId,
+      _p_owner: _p_user,
+      isDeleted: { $ne: true },
+    })
+      .then((item) => {
+        if (!item) throw Error(ERROR.TARGET_NOT_FOUND);
+
+        return DB.update(
+          "Item",
+          {
+            $set: { isDeleted: true },
+          },
+          { _id: itemId }
+        );
+      })
+      .then((result) => {
+        return COMMON.response(200, { result });
       });
   } catch (e) {
     console.error("Error: ", e.message);

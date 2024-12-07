@@ -149,6 +149,7 @@ module.exports.detail = async (event, context, callback) => {
 
     return DB.first("User", {
       _id: userId,
+      isDeleted: { $ne: true },
     }).then((user) => {
       return COMMON.response(200, user);
     });
@@ -187,6 +188,37 @@ module.exports.update = async (event, context, callback) => {
           username,
           password: hashed,
           status,
+        },
+      },
+      { _id: userId }
+    ).then((result) => {
+      return COMMON.response(200, { result });
+    });
+  } catch (e) {
+    console.error("Error: ", e.message);
+    return ERROR(e);
+  }
+};
+
+module.exports.delete = async (event, context, callback) => {
+  console.log("processing event: %j", event);
+  console.log("processing context: %j", context);
+
+  const { method: REST_METHOD } = event.requestContext.http;
+  const { userId } = event.pathParameters;
+
+  try {
+    const session = await PRE.sync(event, context, callback);
+    const { _p_user } = session;
+
+    if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
+
+    return DB.update(
+      "User",
+      {
+        $set: {
+          status: FZ.USER_STATUS.INACTIVE,
+          isDeleted: true
         },
       },
       { _id: userId }

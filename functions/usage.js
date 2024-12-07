@@ -35,6 +35,39 @@ module.exports.new = async (event, context, callback) => {
   }
 };
 
+module.exports.track = async (event, context, callback) => {
+  console.log("processing event: %j", event);
+  console.log("processing context: %j", context);
+
+  const { method: REST_METHOD } = event.requestContext.http;
+
+  const body = UTIL.jsonParser(event.body);
+  console.log("processing body: %j", body);
+
+  const { projectId, type, metadata } = body;
+
+  try {
+    if (!projectId) throw Error(ERROR.INVALID_PARAMS);
+
+    const session = await PRE.sync(event, context, callback);
+    const { _p_user } = session;
+
+    if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
+
+    return DB.insert("Usage", {
+      _p_user,
+      _p_project: `Project$${projectId}`,
+      type,
+      metadata,
+    }).then((result) => {
+      return COMMON.response(200, result);
+    });
+  } catch (e) {
+    console.error("Error: ", e.message);
+    return ERROR(e);
+  }
+};
+
 module.exports.list = async (event, context, callback) => {
   console.log("processing event: %j", event);
   console.log("processing context: %j", context);
@@ -60,6 +93,7 @@ module.exports.list = async (event, context, callback) => {
             $gte: moment(start_date).startOf("d").toDate(),
             $lte: moment(end_date).endOf("d").toDate(),
           },
+          isDeleted: { $ne: true },
         },
       },
       {
