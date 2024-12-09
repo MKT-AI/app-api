@@ -2,6 +2,7 @@ const TAG = "ERR";
 const LTAG = (...args) => console.log(`[${TAG}]`, ...args);
 
 const ERROR_MESSAGE_MAP = {
+  401: "UNAUTHORIZED",
   510: "INVALID_PARAMS",
   511: "INVALID_AUTH",
   512: "SESSION_NOT_FOUND",

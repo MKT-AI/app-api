@@ -159,6 +159,52 @@ module.exports.detail = async (event, context, callback) => {
   }
 };
 
+module.exports.auth = async (event, context, callback) => {
+  console.log("processing event: %j", event);
+  console.log("processing context: %j", context);
+
+  const { method: REST_METHOD } = event.requestContext.http;
+
+  const { check_auth: checkAuth } = event.queryStringParameters || {};
+
+  try {
+    const session = await PRE.sync(event, context, callback);
+    const { _p_user } = session;
+
+    if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
+
+    return DB.first("Auth", {
+      _p_user,
+      isDeleted: { $ne: true },
+    })
+      .then((auth = {}) => {
+        const { content = {} } = auth;
+        const validAuths = Object.entries(content).reduce(
+          (auths, [authKey, { at, validUntil, options }]) => {
+            if (!!validUntil && moment(validUntil).isBefore(moment()))
+              return auths;
+            auths.push(authKey);
+            return auths;
+          },
+          []
+        );
+
+        if (!!checkAuth) {
+          if (!validAuths.includes(checkAuth)) throw Error(ERROR.UNAUTHORIZED);
+          return COMMON.response(200, true);
+        }
+        return COMMON.response(200, { auth: validAuths });
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
+      });
+  } catch (e) {
+    console.error("Error: ", e.message);
+    return ERROR(e);
+  }
+};
+
 module.exports.update = async (event, context, callback) => {
   console.log("processing event: %j", event);
   console.log("processing context: %j", context);
@@ -218,7 +264,7 @@ module.exports.delete = async (event, context, callback) => {
       {
         $set: {
           status: FZ.USER_STATUS.INACTIVE,
-          isDeleted: true
+          isDeleted: true,
         },
       },
       { _id: userId }

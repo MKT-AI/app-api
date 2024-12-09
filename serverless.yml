@@ -38,6 +38,7 @@ provider:
         - GET
         - POST
         - PATCH
+        - DELETE
         - OPTIONS
   environment:
   layers:
@@ -107,6 +108,13 @@ functions:
       - httpApi:
           path: /user/{userId}
           method: delete
+
+  user_auth:
+    handler: user.auth
+    events:
+      - httpApi:
+          path: /auth
+          method: get
 
   project_new:
     handler: project.new
