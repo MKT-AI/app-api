@@ -59,26 +59,48 @@ module.exports.getPresignedUrl = async (event) => {
   const client = new S3Client({
     region: process.env.AWS_REGION,
   });
+
   const { file_extension: fileExtension } = pathParams;
   if (!fileExtension) return COMMON.ERROR(510);
-  const fileKey = `${(Math.random() + 1)
-    .toString(36)
-    .substring(2)}.${fileExtension}`;
-  const objectParams = {
-    Bucket: BUCKET_NAME,
-    Key: `${PREFIX_PATH}${fileKey}`,
+
+  const { count } = event.queryStringParameters || {};
+
+  const generatePresigned = async () => {
+    const fileKey = `${(Math.random() + 1)
+      .toString(36)
+      .substring(2)}.${fileExtension}`;
+
+    const objectParams = {
+      Bucket: BUCKET_NAME,
+      Key: `${PREFIX_PATH}${fileKey}`,
+    };
+
+    const uploadCommand = new PutObjectCommand(objectParams);
+    const uploadUrl = await getSignedUrl(client, uploadCommand, {
+      expiresIn: 60 * 20,
+    });
+
+    const downloadCommand = new GetObjectCommand(objectParams);
+    const downloadUrl = await getSignedUrl(client, downloadCommand, {
+      expiresIn: 60 * 180,
+    });
+
+    return {
+      uploadUrl,
+      downloadUrl,
+      key: fileKey,
+    };
   };
-  const uploadCommand = new PutObjectCommand(objectParams);
-  const uploadUrl = await getSignedUrl(client, uploadCommand, {
-    expiresIn: 600,
-  });
-  const downloadCommand = new GetObjectCommand(objectParams);
-  const downloadUrl = await getSignedUrl(client, downloadCommand, {
-    expiresIn: 3600,
-  });
-  return COMMON.response(200, {
-    uploadUrl,
-    downloadUrl,
-    key: fileKey,
-  });
+
+  if (!!count) {
+    const list = [];
+    while (list.length < Number(count)) {
+      const presigned = await generatePresigned();
+      list.push(presigned);
+    }
+    return COMMON.response(200, { list });
+  } else {
+    const presigned = await generatePresigned();
+    return COMMON.response(200, presigned);
+  }
 };
