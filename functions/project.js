@@ -15,7 +15,7 @@ module.exports.new = async (event, context, callback) => {
   const body = UTIL.jsonParser(event.body);
   console.log("processing body: %j", body);
 
-  const { name, description = "", members = [], isPublic } = body;
+  const { name, description = "", members = [], isPublic = false } = body;
 
   try {
     const session = await PRE.sync(event, context, callback);
@@ -177,14 +177,15 @@ module.exports.update = async (event, context, callback) => {
   const {
     name,
     description = "",
-    _r_members = [],
+    members = [],
     isPublic,
     apiKey,
     status,
   } = body;
 
   try {
-    if (!FZ.PROJECT_STATUS.isValid(status)) throw Error(ERROR.INVALID_PARAMS);
+    if (!!status && !FZ.PROJECT_STATUS.isValid(status))
+      throw Error(ERROR.INVALID_PARAMS);
     const session = await PRE.sync(event, context, callback);
     const { _p_user } = session;
 
@@ -196,10 +197,12 @@ module.exports.update = async (event, context, callback) => {
         $set: {
           name,
           description,
-          _r_members: [...new Set([_p_user, ..._r_members])],
+          _r_members: [
+            ...new Set([_p_user, ...members.map((userId) => `User$${userId}`)]),
+          ],
           isPublic,
           ...(!!apiKey && { apiKey }),
-          status,
+          ...(!!status && { status }),
         },
       },
       { _id: projectId }
