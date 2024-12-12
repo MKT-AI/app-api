@@ -27,7 +27,9 @@ module.exports.new = async (event, context, callback) => {
       _p_owner: _p_user,
       name,
       description,
-      _r_members: [_p_user, ...members.map((userId) => `User$${userId}`)],
+      _r_members: [
+        ...new Set([_p_user, ...members.map((userId) => `User$${userId}`)]),
+      ],
       isPublic,
       status: FZ.PROJECT_STATUS.ACTIVE,
     })
@@ -37,6 +39,10 @@ module.exports.new = async (event, context, callback) => {
       })
       .then((result) => {
         return COMMON.response(200, { result });
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
       });
   } catch (e) {
     console.error("Error: ", e.message);
@@ -155,9 +161,14 @@ module.exports.detail = async (event, context, callback) => {
         _p_project: `Project$${projectId}`,
         isDeleted: { $ne: true },
       }),
-    ]).then(([project, itemCount]) => {
-      return COMMON.response(200, { ...project, count: { item: itemCount } });
-    });
+    ])
+      .then(([project, itemCount]) => {
+        return COMMON.response(200, { ...project, count: { item: itemCount } });
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
+      });
   } catch (e) {
     console.error("Error: ", e.message);
     return ERROR(e);
@@ -191,6 +202,13 @@ module.exports.update = async (event, context, callback) => {
 
     if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
 
+    const project = await DB.first("Project", {
+      _id: projectId,
+      _r_members: _p_user
+    });
+
+    if (!project) throw Error(ERROR.TARGET_NOT_FOUND);
+
     return DB.update(
       "Project",
       {
@@ -198,17 +216,22 @@ module.exports.update = async (event, context, callback) => {
           name,
           description,
           _r_members: [
-            ...new Set([_p_user, ...members.map((userId) => `User$${userId}`)]),
+            ...new Set([...members.map((userId) => `User$${userId}`)]),
           ],
           isPublic,
           ...(!!apiKey && { apiKey }),
           ...(!!status && { status }),
         },
       },
-      { _id: projectId }
-    ).then((result) => {
-      return COMMON.response(200, { result });
-    });
+      { _id: projectId, _r_members: _p_user }
+    )
+      .then((result) => {
+        return COMMON.response(200, { result });
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
+      });
   } catch (e) {
     console.error("Error: ", e.message);
     return ERROR(e);
@@ -229,24 +252,26 @@ module.exports.delete = async (event, context, callback) => {
 
     if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
 
-    return DB.first("Project", {
+    const project = await DB.first("Project", {
       _id: projectId,
-      _p_owner: _p_user,
-      isDeleted: { $ne: true },
-    })
-      .then((project) => {
-        if (!project) throw Error(ERROR.TARGET_NOT_FOUND);
+      _r_members: _p_user
+    });
 
-        return DB.update(
-          "Project",
-          {
-            $set: { status: FZ.PROJECT_STATUS.BLIND, isDeleted: true },
-          },
-          { _id: projectId }
-        );
-      })
+    if (!project) throw Error(ERROR.TARGET_NOT_FOUND);
+
+    return DB.update(
+      "Project",
+      {
+        $set: { status: FZ.PROJECT_STATUS.BLIND, isDeleted: true },
+      },
+      { _id: projectId, _r_members: _p_user }
+    )
       .then((result) => {
         return COMMON.response(200, { result });
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
       });
   } catch (e) {
     console.error("Error: ", e.message);
