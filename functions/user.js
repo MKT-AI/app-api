@@ -104,9 +104,14 @@ module.exports.new = async (event, context, callback) => {
       username,
       status: FZ.USER_STATUS.ACTIVE,
       password: hashed,
-    }).then((result) => {
-      return COMMON.response(200, { result });
-    });
+    })
+      .then((result) => {
+        return COMMON.response(200, { result });
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
+      });
   } catch (e) {
     console.error("Error: ", e.message);
     return ERROR(e);
@@ -125,9 +130,14 @@ module.exports.list = async (event, context, callback) => {
 
     if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
 
-    return DB.findAll("User", {}).then((users) => {
-      return COMMON.response(200, { users });
-    });
+    return DB.findAll("User", {})
+      .then((users) => {
+        return COMMON.response(200, { users });
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
+      });
   } catch (e) {
     console.error("Error: ", e.message);
     return ERROR(e);
@@ -150,9 +160,14 @@ module.exports.detail = async (event, context, callback) => {
     return DB.first("User", {
       _id: userId,
       isDeleted: { $ne: true },
-    }).then((user) => {
-      return COMMON.response(200, user);
-    });
+    })
+      .then((user) => {
+        return COMMON.response(200, user);
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
+      });
   } catch (e) {
     console.error("Error: ", e.message);
     return ERROR(e);
@@ -237,9 +252,14 @@ module.exports.update = async (event, context, callback) => {
         },
       },
       { _id: userId }
-    ).then((result) => {
-      return COMMON.response(200, { result });
-    });
+    )
+      .then((result) => {
+        return COMMON.response(200, { result });
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
+      });
   } catch (e) {
     console.error("Error: ", e.message);
     return ERROR(e);
@@ -268,9 +288,14 @@ module.exports.delete = async (event, context, callback) => {
         },
       },
       { _id: userId }
-    ).then((result) => {
-      return COMMON.response(200, { result });
-    });
+    )
+      .then((result) => {
+        return COMMON.response(200, { result });
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
+      });
   } catch (e) {
     console.error("Error: ", e.message);
     return ERROR(e);

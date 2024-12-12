@@ -67,6 +67,10 @@ module.exports.new = async (event, context, callback) => {
       })
       .then(([result, uploadUrl]) => {
         return COMMON.response(200, { ...result, uploadUrl });
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
       });
   } catch (e) {
     console.error("Error: ", e.message);
@@ -171,6 +175,10 @@ module.exports.list = async (event, context, callback) => {
           items,
           count: { page: pageCount, item: itemCount },
         });
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
       });
   } catch (e) {
     console.error("Error: ", e.message);
@@ -217,6 +225,10 @@ module.exports.detail = async (event, context, callback) => {
       })
       .then((item) => {
         return COMMON.response(200, item);
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
       });
   } catch (e) {
     console.error("Error: ", e.message);
@@ -284,6 +296,10 @@ module.exports.update = async (event, context, callback) => {
       })
       .then((uploadUrl) => {
         return COMMON.response(200, { uploadUrl });
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
       });
   } catch (e) {
     console.error("Error: ", e.message);
@@ -323,6 +339,10 @@ module.exports.delete = async (event, context, callback) => {
       })
       .then((result) => {
         return COMMON.response(200, { result });
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
       });
   } catch (e) {
     console.error("Error: ", e.message);

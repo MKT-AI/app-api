@@ -28,6 +28,10 @@ module.exports.new = async (event, context, callback) => {
       metadata,
     }).then((result) => {
       return COMMON.response(200, result);
+    })
+    .catch((e) => {
+      console.error("Error: ", e.message);
+      return ERROR(e);
     });
   } catch (e) {
     console.error("Error: ", e.message);
@@ -61,6 +65,10 @@ module.exports.track = async (event, context, callback) => {
       metadata,
     }).then((result) => {
       return COMMON.response(200, result);
+    })
+    .catch((e) => {
+      console.error("Error: ", e.message);
+      return ERROR(e);
     });
   } catch (e) {
     console.error("Error: ", e.message);
@@ -107,6 +115,10 @@ module.exports.list = async (event, context, callback) => {
       },
     ]).then((usages) => {
       return COMMON.response(200, { usages });
+    })
+    .catch((e) => {
+      console.error("Error: ", e.message);
+      return ERROR(e);
     });
   } catch (e) {
     console.error("Error: ", e.message);
