@@ -16,6 +16,7 @@ module.exports.createGetUrl = async (event, context, callback) => {
   const pathParams = event.pathParameters;
   const client = new S3Client({
     region: process.env.AWS_REGION,
+    useAccelerateEndpoint: true,
   });
   const { file_key: fileKey } = pathParams;
   if (!fileKey) return callback(null, COMMON.ERROR(510));
@@ -36,6 +37,7 @@ module.exports.createPostUrl = async (event, context, callback) => {
   const pathParams = event.pathParameters;
   const client = new S3Client({
     region: process.env.AWS_REGION,
+    useAccelerateEndpoint: true,
   });
   const { file_extension: fileExtension } = pathParams;
   if (!fileExtension) return callback(null, COMMON.ERROR(510));
@@ -58,6 +60,7 @@ module.exports.getPresignedUrl = async (event) => {
   const pathParams = event.pathParameters;
   const client = new S3Client({
     region: process.env.AWS_REGION,
+    useAccelerateEndpoint: true,
   });
 
   const { file_extension: fileExtension } = pathParams;
