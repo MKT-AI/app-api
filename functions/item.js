@@ -31,47 +31,45 @@ module.exports.new = async (event, context, callback) => {
 
     if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
 
-    return DB.first("Project", {
-      _id: projectId,
-      $or: [
-        {
-          _r_members: _p_user,
-        },
-      ],
-      isDeleted: { $ne: true },
-      status: { $ne: FZ.PROJECT_STATUS.BLIND },
-    })
-      .then((project) => {
-        if (!project) throw Error(ERROR.TARGET_NOT_FOUND);
+    const project = await DB.first(
+      "Project",
+      {
+        _id: projectId,
+        _r_members: _p_user,
+        isDeleted: { $ne: true },
+      },
+      {
+        projection: { name: 1 },
+      }
+    );
 
-        return DB.insert("Item", {
-          _p_owner: _p_user,
-          type,
-          fileExt,
-          name,
-          description,
-          _p_project: `Project$${projectId}`,
-          metadata,
-          externalUrl,
-        });
-      })
-      .then((result) => {
-        const { _id: itemId } = result;
+    if (!project) throw Error(ERROR.TARGET_NOT_FOUND);
 
-        return Promise.all([
-          result,
-          S3.createUploadUrl(
-            `project/${projectId}/${type}/${itemId}.${fileExt}`
-          ),
-        ]);
-      })
-      .then(([result, uploadUrl]) => {
-        return COMMON.response(200, { ...result, uploadUrl });
-      })
-      .catch((e) => {
-        console.error("Error: ", e.message);
-        return ERROR(e);
-      });
+    const insertResult = await DB.insert("Item", {
+      _p_owner: _p_user,
+      type,
+      fileExt,
+      name,
+      description,
+      _p_project: `Project$${projectId}`,
+      metadata,
+      externalUrl,
+    });
+
+    const { _id: itemId, _p_owner, _p_project } = insertResult;
+    const uploadUrl = await S3.createUploadUrl(
+      `project/${projectId}/${type}/${itemId}.${fileExt}`
+    );
+
+    const ownerName = session.user.username || COMMON.DELETED_USER_NAME;
+    const projectName = project.name || COMMON.DELETED_PROJECT_NAME;
+
+    return COMMON.response(200, {
+      ...insertResult,
+      owner: { _p_owner, name: ownerName },
+      project: { _p_project, name: projectName },
+      uploadUrl,
+    });
   } catch (e) {
     console.error("Error: ", e.message);
     return ERROR(e);
@@ -106,80 +104,115 @@ module.exports.list = async (event, context, callback) => {
 
     if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
 
-    return DB.findAll("Project", {
-      $or: [
-        {
-          _id: projectId,
-          _r_members: _p_user,
-        },
-        {
-          _id: projectId,
-          isPublic: true,
-        },
-        showPublic
-          ? {
-              isPublic: true,
-              ...(!!searchText && {
-                $or: [
-                  {
-                    name: { $regex: searchText, $options: "i" },
-                  },
-                  {
-                    description: { $regex: searchText, $options: "i" },
-                  },
-                ],
-              }),
-            }
-          : undefined,
-      ].filter(Boolean),
-      isDeleted: { $ne: true },
-      status: { $ne: FZ.PROJECT_STATUS.BLIND },
-    })
-      .then((projects) => {
-        if (projects.length == 0) throw Error(ERROR.TARGET_NOT_FOUND);
-        const itemQuery = {
-          _p_project: {
-            $in: projects.map((project) => `Project$${project._id}`),
+    const projects = await DB.findAll(
+      "Project",
+      {
+        $or: [
+          {
+            _id: projectId,
+            _r_members: _p_user,
           },
-          ...(!!searchType && { type: searchType }),
-          ...(!!taskType && { "metadata.task_type": taskType }),
-          ...(!!searchText && {
-            $or: [
-              {
-                name: { $regex: searchText, $options: "i" },
-              },
-              {
-                description: { $regex: searchText, $options: "i" },
-              },
-              // showPublic ? { } : undefined
-            ].filter(Boolean),
-          }),
-          isDeleted: { $ne: true },
-        };
-        return Promise.all([
-          DB.findAll("Item", itemQuery, {
-            sort: { _updated_at: -1 },
-            ...(SHOULD_PAGENATION && {
-              limit: PAGE_LENGTH,
-              skip: PAGE_LENGTH * (PAGE - 1),
-            }),
-          }),
-          DB.count("Item", itemQuery),
-        ]);
-      })
-      .then(([items, itemCount]) => {
-        const pageCount = SHOULD_PAGENATION
-          ? Math.ceil(itemCount / PAGE_LENGTH)
-          : 0;
-        return COMMON.response(200, {
-          items,
-          count: { page: pageCount, item: itemCount },
-        });
-      })
-      .catch((e) => {
-        console.error("Error: ", e.message);
-        return ERROR(e);
-      });
+          {
+            _id: projectId,
+            isPublic: true,
+          },
+          showPublic
+            ? {
+                isPublic: true,
+                ...(!!searchText && {
+                  $or: [
+                    {
+                      name: { $regex: searchText, $options: "i" },
+                    },
+                    {
+                      description: { $regex: searchText, $options: "i" },
+                    },
+                  ],
+                }),
+              }
+            : undefined,
+        ].filter(Boolean),
+        isDeleted: { $ne: true },
+        status: { $ne: FZ.PROJECT_STATUS.BLIND },
+      },
+      { projection: { name: 1 } }
+    );
+
+    if (projects.length == 0) throw Error(ERROR.TARGET_NOT_FOUND);
+
+    const itemQuery = {
+      _p_project: {
+        $in: projects.map((project) => `Project$${project._id}`),
+      },
+      ...(!!searchType && { type: searchType }),
+      ...(!!taskType && { "metadata.task_type": taskType }),
+      ...(!!searchText && {
+        $or: [
+          {
+            name: { $regex: searchText, $options: "i" },
+          },
+          {
+            description: { $regex: searchText, $options: "i" },
+          },
+          // showPublic ? { } : undefined
+        ].filter(Boolean),
+      }),
+      isDeleted: { $ne: true },
+    };
+
+    const [items, itemCount] = await Promise.all([
+      DB.findAll("Item", itemQuery, {
+        sort: { _updated_at: -1 },
+        ...(SHOULD_PAGENATION && {
+          limit: PAGE_LENGTH,
+          skip: PAGE_LENGTH * (PAGE - 1),
+        }),
+      }),
+      DB.count("Item", itemQuery),
+    ]);
+
+    const ownerUsers = await DB.findAll(
+      "User",
+      {
+        _id: {
+          $in: items.map(({ _p_owner: _p_user }) => _p_user.split("$")[1]),
+        },
+        isDeleted: { $ne: true },
+      },
+      {
+        projection: { username: 1 },
+      }
+    );
+    const usernameMap = ownerUsers.reduce((map, { _id, username }) => {
+      map[_id] = username;
+      return map;
+    }, {});
+    const projectNameMap = projects.reduce((map, { _id, name }) => {
+      map[_id] = name;
+      return map;
+    }, {});
+
+    const pageCount = SHOULD_PAGENATION
+      ? Math.ceil(itemCount / PAGE_LENGTH)
+      : 0;
+
+    const refinedItems = items.map((item) => {
+      const { _p_owner, _p_project } = item;
+      const ownerName =
+        usernameMap[_p_owner.split("$")[1]] || COMMON.DELETED_USER_NAME;
+      const projectName =
+        projectNameMap[_p_project.split("$")[1]] || COMMON.DELETED_PROJECT_NAME;
+      return {
+        ...item,
+        owner: { name: ownerName, _p_owner },
+        project: { name: projectName, _p_project },
+      };
+    });
+
+    return COMMON.response(200, {
+      items: refinedItems,
+      count: { page: pageCount, item: itemCount },
+    });
   } catch (e) {
     console.error("Error: ", e.message);
     return ERROR(e);
@@ -203,33 +236,51 @@ module.exports.detail = async (event, context, callback) => {
 
     if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
 
-    return DB.first("Project", {
-      _id: projectId,
-      $or: [
-        {
-          _r_members: _p_user,
-        },
-        {
-          isPublic: true,
-        },
-      ],
+    const project = await DB.first(
+      "Project",
+      {
+        _id: projectId,
+        $or: [
+          {
+            _r_members: _p_user,
+          },
+          {
+            isPublic: true,
+          },
+        ],
+        isDeleted: { $ne: true },
+      },
+      {
+        projection: { name: 1 },
+      }
+    );
+
+    if (!project) throw Error(ERROR.TARGET_NOT_FOUND);
+
+    const item = await DB.first("Item", {
+      _p_project: `Project$${projectId}`,
+      _id: itemId,
       isDeleted: { $ne: true },
-    })
-      .then((project) => {
-        if (!project) throw Error(ERROR.TARGET_NOT_FOUND);
-        return DB.first("Item", {
-          _p_project: `Project$${projectId}`,
-          _id: itemId,
-          isDeleted: { $ne: true },
-        });
-      })
-      .then((item) => {
-        return COMMON.response(200, item);
-      })
-      .catch((e) => {
-        console.error("Error: ", e.message);
-        return ERROR(e);
-      });
+    });
+    const { _p_owner, _p_project } = item;
+    const [, userId] = _p_owner.split("$");
+
+    const owner = await DB.first(
+      "User",
+      {
+        _id: userId,
+      },
+      { projection: { username: 1 } }
+    );
+
+    const ownerName = owner.username || COMMON.DELETED_USER_NAME;
+    const projectName = project.name || COMMON.DELETED_PROJECT_NAME;
+
+    return COMMON.response(200, {
+      ...item,
+      owner: { _p_owner, name: ownerName },
+      project: { _p_project, name: projectName },
+    });
   } catch (e) {
     console.error("Error: ", e.message);
     return ERROR(e);

@@ -55,13 +55,15 @@ module.exports.list = async (event, context, callback) => {
   console.log("processing context: %j", context);
 
   const { method: REST_METHOD } = event.requestContext.http;
-  const { brief } = event.queryStringParameters || {};
+  const { brief, show_public } = event.queryStringParameters || {};
 
   try {
     const session = await PRE.sync(event, context, callback);
     const { _p_user } = session;
 
     if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
+
+    const showPublic = show_public == "true" || show_public == 1;
 
     const projects = await DB.findAll(
       "Project",
@@ -70,15 +72,20 @@ module.exports.list = async (event, context, callback) => {
           {
             _r_members: _p_user,
           },
-          {
-            isPublic: true,
-          },
-        ],
+          showPublic
+            ? {
+                isPublic: true,
+              }
+            : undefined,
+        ].filter(Boolean),
         isDeleted: { $ne: true },
         status: { $ne: FZ.PROJECT_STATUS.BLIND },
       },
       { ...(!!brief && { projection: { name: 1 } }) }
     );
+    if (!!brief) {
+      return COMMON.response(200, { projects });
+    }
     const users = await DB.findAll(
       "User",
       {
@@ -117,7 +124,7 @@ module.exports.list = async (event, context, callback) => {
       const { _r_members, ...args } = project;
       const members = _r_members.map((_p_user) => {
         const [, userId] = _p_user.split("$");
-        const username = usernameMap[userId] || "no name";
+        const username = usernameMap[userId] || COMMON.DELETED_USER_NAME;
         return { _id: userId, username, _p_user: `User$${userId}` };
       });
       const itemCount = itemCountMap[project._id] || 0;
@@ -163,6 +170,7 @@ module.exports.detail = async (event, context, callback) => {
       }),
     ])
       .then(([project, itemCount]) => {
+        if (!project) throw Error(ERROR.TARGET_NOT_FOUND);
         return COMMON.response(200, { ...project, count: { item: itemCount } });
       })
       .catch((e) => {
@@ -204,7 +212,7 @@ module.exports.update = async (event, context, callback) => {
 
     const project = await DB.first("Project", {
       _id: projectId,
-      _r_members: _p_user
+      _r_members: _p_user,
     });
 
     if (!project) throw Error(ERROR.TARGET_NOT_FOUND);
@@ -254,7 +262,7 @@ module.exports.delete = async (event, context, callback) => {
 
     const project = await DB.first("Project", {
       _id: projectId,
-      _r_members: _p_user
+      _r_members: _p_user,
     });
 
     if (!project) throw Error(ERROR.TARGET_NOT_FOUND);

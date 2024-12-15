@@ -21,18 +21,23 @@ module.exports.new = async (event, context, callback) => {
   const { userId, projectId, type, metadata } = body;
 
   try {
+    // [userId, projectId, type].forEach((param) => {
+    //   if (!param) throw Error(ERROR.INVALID_PARAMS);
+    // });
+
     return DB.insert("Usage", {
       _p_user: `User$${userId}`,
       _p_project: `Project$${projectId}`,
       type,
       metadata,
-    }).then((result) => {
-      return COMMON.response(200, result);
     })
-    .catch((e) => {
-      console.error("Error: ", e.message);
-      return ERROR(e);
-    });
+      .then((result) => {
+        return COMMON.response(200, result);
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
+      });
   } catch (e) {
     console.error("Error: ", e.message);
     return ERROR(e);
@@ -63,13 +68,14 @@ module.exports.track = async (event, context, callback) => {
       _p_project: `Project$${projectId}`,
       type,
       metadata,
-    }).then((result) => {
-      return COMMON.response(200, result);
     })
-    .catch((e) => {
-      console.error("Error: ", e.message);
-      return ERROR(e);
-    });
+      .then((result) => {
+        return COMMON.response(200, result);
+      })
+      .catch((e) => {
+        console.error("Error: ", e.message);
+        return ERROR(e);
+      });
   } catch (e) {
     console.error("Error: ", e.message);
     return ERROR(e);
@@ -93,7 +99,7 @@ module.exports.list = async (event, context, callback) => {
     if (!moment(end_date, "YYYY-MM-DD", true).isValid())
       throw Error(ERROR.INVALID_PARAMS);
 
-    return DB.aggregate("Usage", [
+    const usages = await DB.aggregate("Usage", [
       {
         $match: {
           type,
@@ -113,13 +119,63 @@ module.exports.list = async (event, context, callback) => {
           count: { $sum: 1 },
         },
       },
-    ]).then((usages) => {
-      return COMMON.response(200, { usages });
-    })
-    .catch((e) => {
-      console.error("Error: ", e.message);
-      return ERROR(e);
-    });
+    ]);
+    switch (group) {
+      case FZ.USAGE_GROUP.USER: {
+        const users = await DB.findAll(
+          "User",
+          {
+            _id: {
+              $in: usages.map(({ _id: _p_user }) => _p_user.split("$")[1]),
+            },
+            isDeleted: { $ne: true },
+          },
+          {
+            projection: { username: 1 },
+          }
+        );
+        const usernameMap = users.reduce((map, { _id, username }) => {
+          map[_id] = username;
+          return map;
+        }, {});
+
+        const result = usages.map((usage) => {
+          const [, userId] = usage._id.split("$");
+          const name = usernameMap[userId] || COMMON.DELETED_USER_NAME;
+          return { ...usage, name };
+        });
+
+        return COMMON.response(200, { usages: result });
+      }
+      case FZ.USAGE_GROUP.PROJECT: {
+        const projects = await DB.findAll(
+          "Project",
+          {
+            _id: {
+              $in: usages.map(
+                ({ _id: _p_project }) => _p_project.split("$")[1]
+              ),
+            },
+            isDeleted: { $ne: true },
+          },
+          {
+            projection: { name: 1 },
+          }
+        );
+        const nameMap = projects.reduce((map, { _id, name }) => {
+          map[_id] = name;
+          return map;
+        }, {});
+
+        const refinedUsages = usages.map((usage) => {
+          const [, projectId] = usage._id.split("$");
+          const name = nameMap[projectId] || COMMON.DELETED_PROJECT_NAME;
+          return { ...usage, name };
+        });
+
+        return COMMON.response(200, { usages: refinedUsages });
+      }
+    }
   } catch (e) {
     console.error("Error: ", e.message);
     return ERROR(e);

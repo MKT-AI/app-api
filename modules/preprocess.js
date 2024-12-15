@@ -29,17 +29,21 @@ module.exports.sync = (event, context, callback) => {
       const [, userId] = _p_user.split("$");
       return Promise.all([
         session,
-        DB.first("User", {
-          _id: userId,
-          status: FZ.USER_STATUS.ACTIVE,
-          isDeleted: { $ne: true },
-        }),
+        DB.first(
+          "User",
+          {
+            _id: userId,
+            status: FZ.USER_STATUS.ACTIVE,
+            isDeleted: { $ne: true },
+          },
+          { projection: { username: 1 } }
+        ),
       ]);
     })
     .then(([session, user]) => {
       LTAG("user = ", user);
       if (!user) throw Error(ERROR.USER_NOT_FOUND);
-      return session;
+      return { ...session, user };
     })
     .catch((error) => {
       console.log(error);

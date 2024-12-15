@@ -1,6 +1,13 @@
 const TAG = "CMM";
 const LTAG = (...args) => console.log(`[${TAG}]`, ...args);
 
+const ENV = Object.freeze({
+  DELETED_USER_NAME: "삭제된 유저",
+  DELETED_PROJECT_NAME: "삭제된 프로젝트",
+  DELETED_ITEM_NAME: "삭제된 리소스"
+});
+Object.entries(ENV).forEach(([k, v]) => module.exports[k] = v);
+
 module.exports.randomString = (length = 10) => {
   const possible =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
