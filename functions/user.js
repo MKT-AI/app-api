@@ -239,7 +239,7 @@ module.exports.update = async (event, context, callback) => {
 
     if (!_p_user) throw Error(ERROR.USER_NOT_FOUND);
 
-    const hashed = await HASH(password);
+    const hashed = !!password ? await HASH(password) : undefined;
 
     return DB.update(
       "User",
@@ -247,7 +247,7 @@ module.exports.update = async (event, context, callback) => {
         $set: {
           account,
           username,
-          password: hashed,
+          ...(!!password && { password: hashed }),
           status,
         },
       },
