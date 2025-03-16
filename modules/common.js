@@ -29,9 +29,10 @@ module.exports.generateSessionToken = () => {
 module.exports.response = (
   statusCode,
   result,
-  headers
+  headers,
+  isBase64Encoded
 ) => ({
-  isBase64Encoded: false,
+  isBase64Encoded: isBase64Encoded || false,
   statusCode: statusCode,
   headers,
   body: JSON.stringify({

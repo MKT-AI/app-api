@@ -12,11 +12,11 @@ package:
 provider:
   name: aws
   runtime: nodejs20.x
-  stage: dev
+  stage: ${opt:stage, 'dev'}
   profile: nit
   region: ap-northeast-2
-  memorySize: 128
-  timeout: 15
+  memorySize: 512
+  timeout: 29
   iamRoleStatements:
     - Effect: "Allow"
       Action:
@@ -41,6 +41,7 @@ provider:
         - DELETE
         - OPTIONS
   environment:
+    STAGE: ${sls:stage}
   layers:
     - { Ref: NpmLambdaLayer }
 
@@ -151,6 +152,34 @@ functions:
           path: /project/{projectId}
           method: delete
 
+  model_new:
+    handler: model.new
+    events:
+      - httpApi:
+          path: /model
+          method: post
+
+  model_list:
+    handler: model.list
+    events:
+      - httpApi:
+          path: /model
+          method: get
+
+  model_update:
+    handler: model.update
+    events:
+      - httpApi:
+          path: /model/{modelId}
+          method: patch
+
+  model_delete:
+    handler: model.delete
+    events:
+      - httpApi:
+          path: /model/{modelId}
+          method: delete
+
   item_new:
     handler: item.new
     events:
@@ -185,6 +214,15 @@ functions:
       - httpApi:
           path: /item/{itemId}
           method: delete
+
+  item_fetch_image:
+    handler: item.fetchImage
+    events:
+      - httpApi:
+          path: /fetch/image
+          method: get
+          binaryMediaTypes:
+            - "*/*"
 
   usage_new:
     handler: usage.new

@@ -400,3 +400,37 @@ module.exports.delete = async (event, context, callback) => {
     return ERROR(e);
   }
 };
+
+module.exports.fetchImage = async (event, context, callback) => {
+  console.log("processing event: %j", event);
+  console.log("processing context: %j", context);
+
+  const FETCH = require("node-fetch");
+
+  const { imageUrl } = event.queryStringParameters || {};
+
+  try {
+    if (!imageUrl) throw Error(ERROR.INVALID_PARAMS);
+
+    const response = await FETCH(imageUrl, { timeout: 29000 });
+
+    if (!response.ok) throw Error(ERROR.TARGET_NOT_FOUND);
+
+    const buffer = await response.buffer();
+    const contentType = response.headers.get("content-type") || "image/png";
+    const base64 = buffer.toString("base64");
+
+    return {
+      statusCode: 200,
+      headers: {
+        "Content-Type": contentType,
+        "Cache-Control": "public, max-age=31536000, immutable",
+      },
+      body: base64,
+      isBase64Encoded: true,
+    };
+  } catch (e) {
+    console.error("Error: ", e.message);
+    return ERROR(e);
+  }
+};

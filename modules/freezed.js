@@ -10,6 +10,15 @@ module.exports.PROJECT_STATUS = Object.freeze({
   },
 });
 
+module.exports.MODEL_STATUS = Object.freeze({
+  ACTIVE: "active",
+  INACTIVE: "inactive",
+  BLIND: "blind",
+  isValid: function (key) {
+    return Object.values(this).includes(key);
+  },
+});
+
 module.exports.ITEM_TYPE = Object.freeze({
   IMAGE: "image",
   VIDEO: "video",
